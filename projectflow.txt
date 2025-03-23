@@ -1,0 +1,42 @@
+1. **STEP 1: Project Setup and Initial Git Repository**
+GOAL : Set up the project structure and initialize a Git repository.
+
+Project Setup and Initial Git Repository
+1. Create the Project Directory and Clone the Empty Repo
+ - git clone "URL"
+2. Get in the project Directory 
+ - cd resume_analyzer
+3. Open Project in Vs code 
+ - code . 
+
+Create the Directory Structure
+- This structure separates our app logic (main), reusable libraries (lib), utilities (utils), and data files (data).
+- Use the terminal or your editor to create the folder structure:
+resume_analyzer/
+├── main/
+│   └── app.py
+├── lib/
+│   ├── groq_handler.py
+│   ├── resume_analyzer.py
+│   └── text_processor.py
+├── utils/
+│   ├── config.py
+│   ├── logger.py
+│   ├── file_utils.py
+│   └── prompt_loader.py
+├── data/
+│   ├── logs/
+│   └── prompts.json
+├── .env
+├── requirements.txt
+└── README.md 
+
+Add a README
+# Resume Analyzer
+A Streamlit app to analyze resumes using the Groq API.
+
+Initialize Git
+git add README.md
+git status
+git commit -m "Initial commit: Project setup with README"
+git push origin main
