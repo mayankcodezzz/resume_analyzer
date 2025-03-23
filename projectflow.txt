@@ -32,11 +32,64 @@ resume_analyzer/
 └── README.md 
 
 Add a README
-# Resume Analyzer
-A Streamlit app to analyze resumes using the Groq API.
+    # Resume Analyzer
+    A Streamlit app to analyze resumes using the Groq API.
 
 Initialize Git
-git add README.md
-git status
-git commit -m "Initial commit: Project setup with README"
-git push origin main
+    git add README.md
+    git status
+    git commit -m "Initial commit: Project setup with README"
+    git push origin main
+
+
+2. **STEP 2: Set Up Dependencies**
+GOAL : Install required packages and configure the environment.
+
+Edit requirements.txt
+ streamlit~=1.43.2
+ groq~=0.18.0
+ pymupdf
+ python-docx~=1.1.2
+ python-dotenv~=1.0.1
+ fitz~=0.0.1.dev2
+
+Install Dependencies
+- pip install -r requirements.txt
+
+Set Up .env for the Groq API Key Go to https://console.groq.com/keys, sign up/login, 
+and generate an API key. Paste it here. The .env file keeps secrets safe.
+- GROQ_API_KEY=your_key_here
+- Add .env to .gitignore
+
+Commit
+We’ve installed dependencies to build our app and secured our API key. Never commit .env to GitHub!
+- git add requirements.txt .gitignore
+- git commit -m "Add dependencies and environment setup"
+- git push origin main
+
+
+3. **STEP 3: Basic Streamlit App for File Upload**
+GOAL : Create a simple Streamlit app to upload a resume and display its text.
+
+*Edit main/app.py*
+import streamlit as st
+def main():
+    st.title("Resume Analyzer")
+    st.subheader("Upload a PDF or Word Resume")
+    uploaded_file = st.file_uploader("Upload Resume", type=["pdf", "docx"])
+    if uploaded_file:
+        st.write("File uploaded:", uploaded_file.name)
+        # Placeholder for text extraction
+        st.write("Text extraction coming soon!")
+
+if __name__ == "__main__":
+    main()
+
+*Run the App*
+    In the terminal: streamlit run main/app.py
+    Show the UI: "You’ll see a title, subtitle, and file uploader. Upload a PDF or DOCX to see the filename."
+
+*Commit*
+- git add main/app.py
+- git commit -m "Add basic Streamlit app for file upload"
+- git push origin main
