@@ -479,3 +479,285 @@ if __name__ == "__main__":
 - git add utils/config.py data/prompts.json utils/prompt_loader.py lib/resume_analyzer.py main/app.py
 - git commit -m "Add structured analysis with prompts and update Config"
 - git push origin main
+
+
+7. **STEP 7: Add Logging and Exception Handling**
+GOAL : Enhance with logger.py and error handling.
+
+*Edit utils/logger.py*
+import logging
+import os
+
+def setup_logger(name, log_file, level=logging.DEBUG):
+    """Set up a logger with console and file handlers."""
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+
+    # Ensure logs directory exists
+    log_dir = os.path.dirname(log_file)
+    os.makedirs(log_dir, exist_ok=True)
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(level)
+
+    # File handler
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(level)
+
+    # Formatter
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    console_handler.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
+
+    # Add handlers (only if not already added)
+    if not logger.handlers:
+        logger.addHandler(console_handler)
+        logger.addHandler(file_handler)
+
+    return logger
+
+*Update lib/text_processor.py*
+import fitz  # PyMuPDF
+from docx import Document
+
+class TextProcessor:
+    """Class to extract text from PDF and DOCX files."""
+    def __init__(self, logger):
+        self.logger = logger
+
+    def extract_text_from_pdf(self, pdf_path):
+        """Extract text from a PDF file."""
+        self.logger.debug("Extracting text from PDF: %s", pdf_path)
+        try:
+            doc = fitz.open(pdf_path)
+            text = "\n".join([page.get_text("text") for page in doc])
+            doc.close()
+            self.logger.debug("Text extracted from PDF: %s", pdf_path)
+            return text
+        except Exception as e:
+            self.logger.error("Error extracting text from PDF %s: %s", pdf_path, str(e))
+            raise Exception(f"Error extracting text from PDF: {str(e)}")
+
+    def extract_text_from_docx(self, docx_path):
+        """Extract text from a DOCX file."""
+        self.logger.debug("Extracting text from DOCX: %s", docx_path)
+        try:
+            doc = Document(docx_path)
+            text = "\n".join([para.text for para in doc.paragraphs])
+            self.logger.debug("Text extracted from DOCX: %s", docx_path)
+            return text
+        except Exception as e:
+            self.logger.error("Error extracting text from DOCX %s: %s", docx_path, str(e))
+            raise Exception(f"Error extracting text from DOCX: {str(e)}")
+
+    def extract_text(self, file_path, file_extension):
+        """Extract text based on file extension."""
+        self.logger.debug("Extracting text from file: %s", file_path)
+        if file_extension == "pdf":
+            return self.extract_text_from_pdf(file_path)
+        elif file_extension == "docx":
+            return self.extract_text_from_docx(file_path)
+        self.logger.warning("Unsupported file extension: %s", file_extension)
+        return ""
+
+*Update lib/groq_handler.py*
+from groq import Groq
+from utils.config import Config
+
+class GroqHandler:
+    """Class to handle interactions with the Groq API."""
+    def __init__(self, logger, prompt_loader):
+        self.logger = logger
+        self.prompt_loader = prompt_loader
+        self.logger.debug("Initializing GroqHandler")
+        try:
+            Config.validate()  # Ensure API key is set
+            self.client = Groq(api_key=Config.GROQ_API_KEY)
+            self.logger.debug("GroqHandler initialized successfully")
+        except Exception as e:
+            self.logger.error("Error initializing Groq client: %s", str(e))
+            raise ValueError(f"Error initializing Groq client: {str(e)}")
+
+    def analyze_text(self, prompt, text, model="gemma2-9b-it", max_tokens=2000, temperature=0):
+        """Analyze text using the Groq API."""
+        self.logger.debug("Starting text analysis with model: %s, max_tokens: %d", model, max_tokens)
+        try:
+            max_length = 3000
+            chunks = [text[i:i + max_length] for i in range(0, len(text), max_length)]
+            partial_responses = []
+
+            for i, chunk in enumerate(chunks):
+                self.logger.debug("Processing chunk %d of %d", i + 1, len(chunks))
+                response = self.client.chat.completions.create(
+                    messages=[{"role": "user", "content": prompt + "\n\n" + chunk}],
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+                partial_responses.append(response.choices[0].message.content.strip())
+                self.logger.debug("Chunk %d processed", i + 1)
+
+            if len(partial_responses) > 1:
+                self.logger.debug("Combining %d partial responses", len(partial_responses))
+                combine_prompt = self.prompt_loader.get_prompt("combine_partial_responses")
+                combined_text = "\n\n".join(partial_responses)
+                final_response = self.client.chat.completions.create(
+                    messages=[{"role": "user", "content": combine_prompt + "\n\n" + combined_text}],
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+                result = final_response.choices[0].message.content.strip()
+            else:
+                result = partial_responses[0]
+
+            self.logger.debug("Text analysis completed")
+            return result
+        except Exception as e:
+            self.logger.error("Error processing text with Groq API: %s", str(e))
+            raise Exception(f"Error processing text with Groq API: {str(e)}")
+
+*lib/resume_analyzer.py*
+class ResumeAnalyzer:
+    """Class to analyze resumes using GroqHandler."""
+    def __init__(self, groq_handler, logger, prompt_loader):
+        self.grok = groq_handler
+        self.logger = logger
+        self.prompt_loader = prompt_loader
+
+    def analyze_resume(self, text, designation, experience, domain):
+        """Analyze resume text."""
+        self.logger.debug("Starting resume analysis for designation: %s, experience: %s, domain: %s",
+                         designation, experience, domain)
+        try:
+            prompt = self.prompt_loader.get_prompt(
+                "resume_analysis",
+                designation=designation,
+                experience=experience,
+                domain=domain
+            )
+            result = self.grok.analyze_text(prompt, text, max_tokens=1500)
+            self.logger.debug("Resume analysis completed")
+            return result
+        except Exception as e:
+            self.logger.error("Error analyzing resume: %s", str(e))
+            raise Exception(f"Error analyzing resume: {str(e)}")
+    
+*utils/prompt_loader.py*
+import json
+import os
+
+class PromptLoader:
+    """Class to load and format prompts from a JSON file."""
+    def __init__(self, prompts_file, logger):
+        self.logger = logger
+        self.prompts_file = prompts_file
+        self.prompts = self._load_prompts()
+
+    def _load_prompts(self):
+        """Load prompts from the JSON file."""
+        try:
+            self.logger.debug("Loading prompts from %s", self.prompts_file)
+            if not os.path.exists(self.prompts_file):
+                self.logger.error("Prompts file not found: %s", self.prompts_file)
+                raise FileNotFoundError(f"Prompts file not found: {self.prompts_file}")
+            with open(self.prompts_file, "r", encoding="utf-8") as f:
+                prompts = json.load(f)
+            self.logger.debug("Prompts loaded successfully")
+            return prompts
+        except Exception as e:
+            self.logger.error("Error loading prompts: %s", str(e))
+            raise Exception(f"Error loading prompts: {str(e)}")
+
+    def get_prompt(self, prompt_key, **kwargs):
+        """Fetch and format a prompt by key with provided variables."""
+        try:
+            if prompt_key not in self.prompts:
+                self.logger.error("Prompt key not found: %s", prompt_key)
+                raise KeyError(f"Prompt key not found: {prompt_key}")
+            template = self.prompts[prompt_key]["template"]
+            formatted_prompt = template.format(**kwargs)
+            self.logger.debug("Prompt fetched and formatted for key: %s", prompt_key)
+            return formatted_prompt
+        except Exception as e:
+            self.logger.error("Error formatting prompt %s: %s", prompt_key, str(e))
+            raise Exception(f"Error formatting prompt {prompt_key}: {str(e)}")
+
+*Update main/app.py*
+import sys
+import os
+import streamlit as st
+
+# Add the project root directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from lib.groq_handler import GroqHandler
+from lib.text_processor import TextProcessor
+from lib.resume_analyzer import ResumeAnalyzer
+from utils.config import Config
+from utils.logger import setup_logger
+from utils.prompt_loader import PromptLoader
+
+# Singleton logger setup (runs only once)
+if 'loggers' not in st.session_state:
+    Config.validate()  # Validate config once
+    st.session_state.loggers = {
+        "app": setup_logger("app", f"{Config.LOG_DIR}/app.log"),
+        "groq_handler": setup_logger("groq_handler", f"{Config.LOG_DIR}/groq_handler.log"),
+        "prompt_loader": setup_logger("prompt_loader", f"{Config.LOG_DIR}/prompt_loader.log"),
+        "resume_analyzer": setup_logger("resume_analyzer", f"{Config.LOG_DIR}/resume_analyzer.log"),
+        "text_processor": setup_logger("text_processor", f"{Config.LOG_DIR}/text_processor.log")
+    }
+    st.session_state.loggers["app"].debug("Starting Resume Analyzer application")
+
+loggers = st.session_state.loggers
+
+def main():
+    """Main function to run the Streamlit Resume Analyzer app."""
+    st.title("Resume Analyzer")
+    st.subheader("Upload a PDF or Word Resume")
+    uploaded_file = st.file_uploader("Upload Resume", type=["pdf", "docx"])
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        designation = st.selectbox("Select Desired Designation", ["Data Scientist", "Data Analyst", "MLOps Engineer", "Machine Learning Engineer"])
+    with col2:
+        experience = st.selectbox("Select Experience Level", ["Fresher", "<1 Year Experience", "1-2 Years Experience", "2-5 Years Experience", "5-8 Years Experience", "8-10 Years Experience"])
+    with col3:
+        domain = st.selectbox("Select Domain", ["Finance", "Healthcare", "Automobile", "Real Estate"])
+    if st.button("Analyze") and uploaded_file:
+        loggers["app"].debug("User clicked Analyze button for file: %s", uploaded_file.name)
+        file_extension = uploaded_file.name.split(".")[-1].lower()
+        temp_path = f"temp_resume.{file_extension}"
+        try:
+            with open(temp_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            text_processor = TextProcessor(loggers["text_processor"])
+            extracted_text = text_processor.extract_text(temp_path, file_extension)
+            os.remove(temp_path)
+            if extracted_text:
+                grok_handler = GroqHandler(loggers["groq_handler"], PromptLoader(Config.PROMPTS_FILE, loggers["prompt_loader"]))
+                resume_analyzer = ResumeAnalyzer(grok_handler, loggers["resume_analyzer"], PromptLoader(Config.PROMPTS_FILE, loggers["prompt_loader"]))
+                with st.spinner("Analyzing resume... Please wait"):
+                    analysis = resume_analyzer.analyze_resume(extracted_text, designation, experience, domain)
+                st.markdown("# Resume Analysis")
+                st.write(analysis)
+            else:
+                st.error("Could not extract text.")
+                loggers["app"].error("Failed to extract text from %s", uploaded_file.name)
+        except Exception as e:
+            loggers["app"].error("Error processing resume: %s", str(e))
+            st.error(f"Error processing resume: {str(e)}")
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+if __name__ == "__main__":
+    main()
+
+*Test*
+Run streamlit run main/app.py and check logs in data/logs/.
+
+*Commit*
+- git add utils/logger.py lib/text_processor.py lib/groq_handler.py lib/resume_analyzer.py utils/prompt_loader.py main/app.py
+- git commit -m "Add logging and exception handling"
+- git push origin main
