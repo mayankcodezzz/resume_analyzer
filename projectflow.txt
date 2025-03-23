@@ -763,8 +763,8 @@ Run streamlit run main/app.py and check logs in data/logs/.
 - git push origin main
 
 
-8. **STEP 8: Add Logging and Exception Handling**
-GOAL : Enhance with logger.py and error handling.
+8. **STEP 8: Final Enhancements (Caching, Download, Multi-Page)**
+GOAL : Add Caching, Download, Multi-Page.
 
 *Edit utils/file_utils.py*
 import os
