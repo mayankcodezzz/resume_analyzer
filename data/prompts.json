@@ -1,0 +1,10 @@
+{
+  "resume_analysis": {
+    "description": "Prompt for analyzing a resume based on designation, experience, and domain",
+    "template": "Analyze the following resume text for this context:\n- Desired Designation: {designation}\n- Experience Level: {experience}\n- Domain: {domain}\n\nProvide three sections based ONLY on the explicit resume content:\n1. Strengths: List in bullet points using \"Your\" (Education, Work Experience, Skills, Projects, Certifications, writing style).\n2. Areas to Improve: List in bullet points using \"Your\". If none, say \"- No significant improvements identified.\"\n3. Score: Provide ONE score out of 100 as \"Score: [number]\".\n\nFormat:\nStrengths:\n- Your strength 1\n- Your strength 2\nAreas to Improve:\n- Your area 1\n- Your area 2\nScore: [number]"
+  },
+  "combine_partial_responses": {
+    "description": "Prompt for combining multiple partial responses into a coherent one",
+    "template": "Combine multiple partial responses into one coherent response.\nPreserve all details and remove duplicates or conflicts."
+  }
+}

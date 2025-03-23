@@ -1,22 +1,17 @@
-import os  # Operating system interfaces for environment variable access
-from dotenv import load_dotenv  # Library to load environment variables from a .env file
+import os
+from dotenv import load_dotenv
 
-# Load environment variables from .env file into the application's environment
+# Load environment variables from .env file
 load_dotenv()
 
 class Config:
-    """Configuration class to manage application settings and environment variables."""
-    
-    # Static attribute to store the Grok API key retrieved from environment variables
+    """Configuration class for the application."""
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+    LOG_DIR = "data/logs"
+    PROMPTS_FILE = "data/prompts.json"
 
     @staticmethod
     def validate():
-        """Validate that required environment variables are set.
-        
-        Raises:
-            ValueError: If GROQ_API_KEY is not set or is empty
-        """
-        # Check if GROQ_API_KEY is missing or empty
+        """Validate that required environment variables are set."""
         if not Config.GROQ_API_KEY:
             raise ValueError("GROQ_API_KEY is not set in the .env file")
