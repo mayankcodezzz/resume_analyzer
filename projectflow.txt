@@ -46,12 +46,11 @@ Initialize Git
 GOAL : Install required packages and configure the environment.
 
 Edit requirements.txt
- streamlit~=1.43.2
- groq~=0.18.0
- pymupdf
- python-docx~=1.1.2
- python-dotenv~=1.0.1
- fitz~=0.0.1.dev2
+streamlit
+groq
+pymupdf
+python-docx
+python-dotenv
 
 Install Dependencies
 - pip install -r requirements.txt
@@ -92,4 +91,124 @@ if __name__ == "__main__":
 *Commit*
 - git add main/app.py
 - git commit -m "Add basic Streamlit app for file upload"
+- git push origin main
+
+
+4. **STEP 4: Extract Text from Uploaded Files**
+GOAL : Add text extraction for PDF and DOCX files.
+
+*Edit lib/text_processor.py*
+import fitz  # type: ignore # PyMuPDF - Library for handling PDF files
+from docx import Document  # Library for handling Word (.docx) files
+
+class TextProcessor:
+    """A class to process and extract text from PDF and DOCX files."""
+    
+    def __init__(self):
+        """Initialize the TextProcessor class.
+        Currently no initialization parameters are needed."""
+        pass
+
+    def extract_text_from_pdf(self, pdf_path):
+        """Extract text content from a PDF file.
+        
+        Args:
+            pdf_path (str): Path to the PDF file to be processed
+            
+        Returns:
+            str: Extracted text from all pages joined by newlines
+        """
+        # Open the PDF file using PyMuPDF
+        doc = fitz.open(pdf_path)
+        # Extract text from each page and join with newline characters
+        text = "\n".join([page.get_text("text") for page in doc])
+        # Close the document to free up resources
+        doc.close()
+        return text
+
+    def extract_text_from_docx(self, docx_path):
+        """Extract text content from a DOCX file.
+        
+        Args:
+            docx_path (str): Path to the DOCX file to be processed
+            
+        Returns:
+            str: Extracted text from all paragraphs joined by newlines
+        """
+        # Open the DOCX file using python-docx
+        doc = Document(docx_path)
+        # Extract text from each paragraph and join with newline characters
+        text = "\n".join([para.text for para in doc.paragraphs])
+        return text
+
+    def extract_text(self, file_path, file_extension):
+        """Extract text from a file based on its extension.
+        
+        Args:
+            file_path (str): Path to the file to be processed
+            file_extension (str): File extension (without dot) to determine processing method
+            
+        Returns:
+            str: Extracted text from the file, empty string if extension not supported
+        """
+        # Handle PDF files
+        if file_extension == "pdf":
+            return self.extract_text_from_pdf(file_path)
+        # Handle DOCX files
+        elif file_extension == "docx":
+            return self.extract_text_from_docx(file_path)
+        # Return empty string for unsupported file types
+        return ""
+
+*Update main/app.py*
+import os  # Operating system interfaces for file handling
+import sys
+# Add the project root directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import streamlit as st  # Web app framework for creating interactive interfaces
+from lib.text_processor import TextProcessor  # Custom class for text extraction
+
+def main():
+    """Main function to run the Streamlit Resume Analyzer application."""
+    # Set the title of the web application
+    st.title("Resume Analyzer")
+    # Add a subheader to provide context
+    st.subheader("Upload a PDF or Word Resume")
+    
+    # Create a file uploader widget accepting PDF and DOCX files
+    uploaded_file = st.file_uploader("Upload Resume", type=["pdf", "docx"])
+    
+    # Check if a file is uploaded and extract button is clicked
+    if uploaded_file and st.button("Extract Text"):
+        # Get the file extension from the uploaded file name
+        file_extension = uploaded_file.name.split(".")[-1].lower()
+        # Define a temporary file path for processing
+        temp_path = f"temp_resume.{file_extension}"
+        
+        # Save the uploaded file temporarily to disk
+        with open(temp_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        
+        # Create an instance of TextProcessor to handle text extraction
+        processor = TextProcessor()
+        # Extract text using the appropriate method based on file extension
+        extracted_text = processor.extract_text(temp_path, file_extension)
+        
+        # Clean up by removing the temporary file
+        os.remove(temp_path)
+        
+        # Display the extracted text section
+        st.write("Extracted Text:")
+        # Show the extracted text in a scrollable text area
+        st.text_area("Text", extracted_text, height=300)
+# Entry point of the script - runs the application when executed directly.
+if __name__ == "__main__":
+    main()
+
+*Test*
+    - Run streamlit run main/app.py, upload a file, and click "Extract Text" to see the output.
+
+*Commit*
+- git add lib/text_processor.py main/app.py
+- git commit -m "Add text extraction for PDF and DOCX files"
 - git push origin main
