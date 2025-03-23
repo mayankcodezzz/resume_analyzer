@@ -212,3 +212,141 @@ if __name__ == "__main__":
 - git add lib/text_processor.py main/app.py
 - git commit -m "Add text extraction for PDF and DOCX files"
 - git push origin main
+
+
+5. **STEP 5: Set Up Groq API Integration**
+GOAL : Connect to the Groq API to analyze text.
+
+*Edit utils/config.py*
+import os  # Operating system interfaces for environment variable access
+from dotenv import load_dotenv  # Library to load environment variables from a .env file
+
+# Load environment variables from .env file into the application's environment
+load_dotenv()
+
+class Config:
+    """Configuration class to manage application settings and environment variables."""
+    
+    # Static attribute to store the Grok API key retrieved from environment variables
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+    @staticmethod
+    def validate():
+        """Validate that required environment variables are set.
+        
+        Raises:
+            ValueError: If GROQ_API_KEY is not set or is empty
+        """
+        # Check if GROQ_API_KEY is missing or empty
+        if not Config.GROQ_API_KEY:
+            raise ValueError("GROQ_API_KEY is not set in the .env file")
+
+*Edit lib/groq_handler.py*
+from groq import Groq  # Groq SDK for interacting with the Groq API
+from utils.config import Config  # Custom configuration class for environment settings
+
+class GroqHandler:
+    """Handler class for managing interactions with the Groq API."""
+    
+    def __init__(self):
+        """Initialize the GroqHandler with a validated API client.
+        
+        Raises:
+            ValueError: If Config validation fails (e.g., missing API key)
+        """
+        # Validate configuration settings before proceeding
+        Config.validate()
+        # Initialize Groq client with the API key from Config
+        self.client = Groq(api_key=Config.GROQ_API_KEY)
+
+    def analyze_text(self, prompt, text, model="gemma2-9b-it", max_tokens=2000):
+        """Analyze text using the Groq API with a specified prompt and model.
+        
+        Args:
+            prompt (str): The instruction or question to guide the analysis
+            text (str): The text content to be analyzed
+            model (str): The Groq model to use (default: "gemma2-9b-it")
+            max_tokens (int): Maximum number of tokens in the response (default: 2000)
+            
+        Returns:
+            str: The analyzed text response from the Groq API, stripped of leading/trailing whitespace
+        """
+        # Send a request to the Groq API with the combined prompt and text
+        response = self.client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt + "\n\n" + text}],
+            model=model,
+            max_tokens=max_tokens
+        )
+        # Extract and return the content from the first response choice
+        return response.choices[0].message.content.strip()
+
+*Update main/app.py*
+import os  # Operating system interfaces for file handling
+import sys
+# Add the project root directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import streamlit as st  # Web app framework for creating interactive interfaces
+from lib.text_processor import TextProcessor  # Custom class for text extraction
+from lib.groq_handler import GroqHandler  # Custom class for interacting with Groq API
+
+def main():
+    """Main function to run the Streamlit Resume Analyzer application."""
+    # Set the title of the web application
+    st.title("Resume Analyzer")
+    # Add a subheader to provide context for the user
+    st.subheader("Upload a PDF or Word Resume")
+    
+    # Create a file uploader widget accepting PDF and DOCX files
+    uploaded_file = st.file_uploader("Upload Resume", type=["pdf", "docx"])
+    
+    # Check if a file is uploaded and the Analyze button is clicked
+    if uploaded_file and st.button("Analyze"):
+        # Extract the file extension from the uploaded file name
+        file_extension = uploaded_file.name.split(".")[-1].lower()
+        # Define a temporary file path for processing
+        temp_path = f"temp_resume.{file_extension}"
+        
+        # Save the uploaded file temporarily to disk in binary write mode
+        with open(temp_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        
+        # Instantiate TextProcessor to extract text from the file
+        processor = TextProcessor()
+        # Extract text based on the file type
+        extracted_text = processor.extract_text(temp_path, file_extension)
+        
+        # Remove the temporary file to clean up
+        os.remove(temp_path)
+        
+        # Proceed if text was successfully extracted
+        if extracted_text:
+            # Instantiate GroqHandler for text analysis
+            groq = GroqHandler()
+            # Define the prompt for Groq API analysis
+            prompt = "Analyze this resume text and summarize its key points."
+            
+            # Display a spinner while analysis is in progress
+            with st.spinner("Analyzing..."):
+                # Analyze the extracted text using Groq API
+                analysis = groq.analyze_text(prompt, extracted_text)
+            
+            # Display the analysis header
+            st.write("Analysis:")
+            # Render the analysis result as markdown for better formatting
+            st.markdown(analysis)
+        else:
+            # Display an error message if no text was extracted
+            st.error("No text extracted from the file.")
+
+# Entry point of the script - runs the application when executed directly.
+if __name__ == "__main__":
+    main()
+
+*Test*
+    - Run the streamlit run main/app.py, upload a resume, and click "Analyze" to see a basic summary.
+
+*Commit*
+- git add utils/config.py lib/groq_handler.py main/app.py
+- git commit -m "Integrate Groq API for basic text analysis"
+- git push origin main
+
